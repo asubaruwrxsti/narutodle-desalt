@@ -26,33 +26,21 @@
     console.log("CryptoJS.AES.decrypt is now monkey-patched.");
   }
 
-  // 4. Try to extract the encrypted answer from localStorage
-  // Try common keys, or list all keys for user to pick
-  const possibleKeys = [
-    "classic_today_answer",
-    "answer",
-    "today_answer"
-  ];
-  let encrypted = null, keyUsed = null;
-  for (const k of possibleKeys) {
-    if (localStorage.getItem(k)) {
-      encrypted = localStorage.getItem(k);
-      keyUsed = k;
-      break;
-    }
-  }
-  if (!encrypted) {
-    // Fallback: show all localStorage keys
-    console.log("Could not find answer in common keys. Here are all localStorage keys:");
-    Object.keys(localStorage).forEach(k => console.log(k, localStorage.getItem(k)));
+  // 4. Collect all localStorage keys that contain "answer"
+  const answerKeys = Object.keys(localStorage).filter(k =>
+    k.toLowerCase().includes("answer")
+  );
+
+  if (answerKeys.length === 0) {
+    console.log("No localStorage keys with 'answer' found.");
     return;
   }
-  console.log("Found encrypted answer in localStorage key:", keyUsed);
 
-  // 5. Try to extract the passphrase from the code (if not already known)
+  // 5. Try to get the passphrase
   let passphrase = window._lastCryptoJSPassphrase;
+
   if (!passphrase) {
-    // Try to find it in window properties (as in previous scripts)
+    // Try extracting from code
     for (const prop in window) {
       try {
         if (window[prop] && typeof window[prop].decrypt === "function") {
@@ -67,13 +55,25 @@
       } catch (e) {}
     }
   }
+
+  // Fallback passphrase
   if (!passphrase) {
-    // Ask user to trigger a decryption in-game to log the passphrase
-    console.log("Passphrase not found. Please play/reload the game to trigger decryption, then rerun this script.");
-    return;
+    console.log("Passphrase not found. Trying fallback passphrase: QhDZJfngdx");
+    passphrase = "QhDZJfngdx";
   }
 
-  // 6. Decrypt the answer
-  const decrypted = CryptoJS.AES.decrypt(encrypted, passphrase).toString(CryptoJS.enc.Utf8);
-  console.log("Decrypted answer:", decrypted);
+  // 6. Try to decrypt each key
+  answerKeys.forEach(key => {
+    const encrypted = localStorage.getItem(key);
+    if (!encrypted) return;
+
+    try {
+      const decrypted = CryptoJS.AES.decrypt(encrypted, passphrase).toString(CryptoJS.enc.Utf8);
+      if (decrypted) {
+        console.log(`${key}: ${decrypted}`);
+      }
+    } catch (err) {
+      // Decryption failed, ignore
+    }
+  });
 })();
